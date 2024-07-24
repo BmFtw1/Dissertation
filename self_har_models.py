@@ -440,3 +440,4 @@ def create_transformer_model(input_shape, model_name="Transformer"):
 
     outputs = tf.keras.layers.Softmax()(x)
     return tf.keras.Model(inputs, outputs, name=model_name)
+

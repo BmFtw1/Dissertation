@@ -889,7 +889,7 @@ def process_HARTH_all_acc_data(data_folder_path):
         print(f"{user} {data.shape}")
         datasets[user] = [(data, labels)]
     user_datasets = {"acc": datasets,
-                   "all": datasets}
+                     "all": datasets}
     print(f"HARTH dataset: {user_datasets}")
     return user_datasets
 
@@ -1727,7 +1727,7 @@ def process_WISDM_v1_HAR(data_folder_path):
     print("here")
     df = pd.read_csv(os.path.join(data_folder_path, 'WISDM_ar_v1.1_raw.txt'), header=None, names=columns,
                      on_bad_lines='skip')
-    df['z-axis'] = df['z-axis'].map(lambda x: str(re.findall("\d+\.\d+", str(x))))
+    df['z-axis'] = df['z-axis'].map(lambda x: str(re.findall(r"\d+\.\d+", str(x))))
     df['z-axis'] = df['z-axis'].map(lambda x: x[2:-2])
     df['z-axis'] = pd.to_numeric(df['z-axis'], errors='coerce')
     df = df.dropna()

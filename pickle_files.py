@@ -8,13 +8,13 @@ import pickle
 import raw_data_processing
 
 if __name__ == '__main__':
-    pamap_df = process_PAMAP2_all_data("test_run/original_datasets/PAMAP2/protocol")
-    dasa_df = process_dasa_all_data("test_run/original_datasets/data")
-    motion_sense_df = process_motion_sense_all_files("test_run/original_datasets/motionsense/Data/")
+    motion_sense_df = process_motion_sense_all_files("test_run/original_datasets/motionsense")
+    pamap_df = process_PAMAP2_all_data("test_run/original_datasets/PAMAP2/PAMAP2_Dataset/Protocol")
+    dasa_df = process_dasa_all_data("test_run/original_datasets/dailysports/data")
     hhar_df = process_hhar_all_files("test_run/original_datasets/hhar/Activity recognition exp")
-    harth_df = process_HARTH_all_acc_data("test_run/original_datasets/harth")
+    harth_df = process_HARTH_all_acc_data("test_run/original_datasets/harth/harth")
     #wisdm_df = process_WISDM_all_data("test_run/original_datasets/wisdm-dataset/raw")
-    
+
 
     # pickle the datasets
     with open('pickled_datasets/pamap2.pickle', 'wb') as file:
@@ -29,13 +29,13 @@ if __name__ == '__main__':
         pickle.dump(dasa_df, file)
 
 
-    motion_sense_har_df = process_motion_sense_all_har_files("test_run/original_datasets/motionsense/Data/")
+    motion_sense_har_df = process_motion_sense_all_har_files("test_run/original_datasets/motionsense")
     hhar_har_df = process_hhar_all_har_files("test_run/original_datasets/hhar/Activity recognition exp")
-    dasa_har_df = process_dasa_all_har_data("test_run/original_datasets/data")
-    pamap_har_df = process_pamap2_har_files("test_run/original_datasets/PAMAP2/protocol")
-    harth_har_df = process_HARTH_all_har_data("test_run/original_datasets/harth")
+    dasa_har_df = process_dasa_all_har_data("test_run/original_datasets/dailysports/data")
+    pamap_har_df = process_pamap2_har_files("test_run/original_datasets/PAMAP2/PAMAP2_Dataset/Protocol")
+    harth_har_df = process_HARTH_all_har_data("test_run/original_datasets/harth/harth")
     # wisdm_har_df = process_WISDM_all_har_data("test_run/original_datasets/wisdm-dataset/raw")
-    wisdm1_har_df = raw_data_processing.process_WISDM_v1_HAR("test_run/original_datasets/WISDM_ar_v1.1")
+    wisdm1_har_df = raw_data_processing.process_WISDM_v1_HAR("test_run/original_datasets/wisdm/WISDM_ar_v1.1")
 
     with open('pickled_datasets/pamap_har.pickle', 'wb') as file:
         pickle.dump(pamap_har_df, file)
