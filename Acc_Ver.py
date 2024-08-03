@@ -1,12 +1,14 @@
-import os
 import pickle
-import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, classification_report
 from self_har_models import create_CNN_LSTM_Model
 import dataset_pre_processing
+import os
+import tensorflow as tf
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+tf.get_logger().setLevel('INFO')
 
 
 def plot_confusion_matrix(y_true, y_pred, classes, title='Confusion matrix', cmap=plt.cm.Blues, filename=None):
@@ -23,28 +25,10 @@ def plot_confusion_matrix(y_true, y_pred, classes, title='Confusion matrix', cma
     plt.close()
 
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-tf.get_logger().setLevel('INFO')
 
-
-def check_label_balance(labels, label_map):
-    labels = labels.astype(int)
-    unique, counts = np.unique(labels, return_counts=True)
-    label_counts = dict(zip(unique, counts))
-    print("Label balance:")
-    for label, count in label_counts.items():
-        label_name = next((name for name, idx in label_map.items() if idx == label), None)
-        if label_name:
-            print(f"{label}: {count} ({label_name})")
-        else:
-            print(f"Label {label} not found in label_map. Count: {count}")
-    plt.figure(figsize=(10, 6))
-    plt.bar(label_counts.keys(), label_counts.values())
-    plt.xlabel('Labels')
-    plt.ylabel('Count')
-    plt.title('Label Distribution')
-    plt.show()
-
+def check_class_balance(y):
+    unique, counts = np.unique(y, return_counts=True)
+    return dict(zip(unique, counts))
 
 # Load datasets
 print("Loading datasets...")
@@ -68,15 +52,20 @@ for i, df in enumerate(datasets):
 print("Concatenating datasets...")
 df_acc = dataset_pre_processing.concat_datasets(datasets, 'acc')
 df_gyro = dataset_pre_processing.concat_datasets(datasets, 'gyro')
-users = list(df_acc.keys())
+
+# Combine user keys from both accelerometer and gyroscope data
+users = list(set(df_acc.keys()).union(set(df_gyro.keys())))
 
 # Create separate label maps for accelerometer and gyroscope
 labels_acc = dataset_pre_processing.get_labels(df_acc)
 labels_gyro = dataset_pre_processing.get_labels(df_gyro)
+
 label_map_acc = {label: index for index, label in enumerate(labels_acc)}
 label_map_gyro = {label: index for index, label in enumerate(labels_gyro)}
+
 num_unique_labels_acc = len(labels_acc)
 num_unique_labels_gyro = len(labels_gyro)
+
 print(f"Number of unique labels (ACC): {num_unique_labels_acc}")
 print(f"Number of unique labels (GYRO): {num_unique_labels_gyro}")
 
@@ -106,9 +95,11 @@ gyro_output = tf.keras.layers.Dense(num_unique_labels_gyro, activation='softmax'
 # Create and compile the combined model
 model = tf.keras.Model(inputs=[acc_input, gyro_input], outputs=[acc_output, gyro_output])
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0005),
-              loss=['categorical_crossentropy', 'categorical_crossentropy'],
-              metrics=['accuracy', 'accuracy'])
+              loss={'acc_output': 'categorical_crossentropy', 'gyro_output': 'categorical_crossentropy'},
+              metrics={'acc_output': ['accuracy'], 'gyro_output': ['accuracy']})
 
+# Print model metrics names after compilation
+print(f"Model metrics names: {model.metrics_names}")
 
 # Preprocess datasets for each sensor type, handling missing sensor types
 def preprocess_sensor_data(sensor_type, label_map):
@@ -133,25 +124,6 @@ def preprocess_sensor_data(sensor_type, label_map):
         shift=100,
         verbose=1
     )
-
-    # Check the unique labels in the preprocessed data
-    if preprocessed_data:
-        train_data, val_data, test_data = preprocessed_data
-        train_x, train_y = train_data
-        val_x, val_y = val_data if val_data is not None else (None, None)
-        test_x, test_y = test_data
-
-        print(f"Unique labels in {sensor_type} train_y after preprocessing: {np.unique(train_y)}")
-        if val_y is not None:
-            print(f"Unique labels in {sensor_type} val_y after preprocessing: {np.unique(val_y)}")
-        print(f"Unique labels in {sensor_type} test_y after preprocessing: {np.unique(test_y)}")
-
-        # Check one-hot encoded labels
-        one_hot_encoded_labels = tf.keras.utils.to_categorical(train_y, num_classes=len(label_map))
-        print(f"Shape of one-hot encoded labels for {sensor_type}: {one_hot_encoded_labels.shape}")
-        print(
-            f"Unique labels in one-hot encoded data for {sensor_type}: {np.unique(np.argmax(one_hot_encoded_labels, axis=1))}")
-
     if not preprocessed_data:
         print(f"Preprocessing failed for sensor type: {sensor_type}")
     return preprocessed_data
@@ -160,6 +132,9 @@ def preprocess_sensor_data(sensor_type, label_map):
 # Preprocess the data for both accelerometer and gyroscope
 acc_df = preprocess_sensor_data('acc', label_map_acc)
 gyro_df = preprocess_sensor_data('gyro', label_map_gyro)
+
+def check_unique_labels(y):
+    return np.unique(np.argmax(y, axis=1))
 
 
 # Ensure the number of samples are the same for both accelerometer and gyroscope data
@@ -188,11 +163,56 @@ def balance_datasets(acc_data, gyro_data):
 (val_acc_x, val_acc_y), (val_gyro_x, val_gyro_y) = balance_datasets((acc_df[1][0], acc_df[1][1]),
                                                                     (gyro_df[1][0], gyro_df[1][1]))
 
-# Print unique labels
-print(f"Unique labels in train_acc_y: {np.unique(np.argmax(train_acc_y, axis=1))}")
-print(f"Unique labels in val_acc_y: {np.unique(np.argmax(val_acc_y, axis=1))}")
-print(f"Unique labels in train_gyro_y: {np.unique(np.argmax(train_gyro_y, axis=1))}")
-print(f"Unique labels in val_gyro_y: {np.unique(np.argmax(val_gyro_y, axis=1))}")
+# Check unique labels for training datasets
+train_acc_unique_labels = check_unique_labels(train_acc_y)
+train_gyro_unique_labels = check_unique_labels(train_gyro_y)
+print(f"Unique labels in balanced train_acc_y: {train_acc_unique_labels}")
+print(f"Unique labels in balanced train_gyro_y: {train_gyro_unique_labels}")
+
+# Print unique labels and their corresponding names for accelerometer
+print(f"Unique labels in balanced train_acc_y: {train_acc_unique_labels}")
+print("Actual label names in balanced train_acc_y:")
+for label in train_acc_unique_labels:
+    label_name = [name for name, index in label_map_acc.items() if index == label]
+    print(f"Label {label}: {label_name[0] if label_name else 'Unknown'}")
+
+# Print unique labels and their corresponding names for gyroscope
+print(f"Unique labels in balanced train_gyro_y: {train_gyro_unique_labels}")
+print("Actual label names in balanced train_gyro_y:")
+for label in train_gyro_unique_labels:
+    label_name = [name for name, index in label_map_gyro.items() if index == label]
+    print(f"Label {label}: {label_name[0] if label_name else 'Unknown'}")
+
+# Check unique labels for validation datasets
+val_acc_unique_labels = check_unique_labels(val_acc_y)
+val_gyro_unique_labels = check_unique_labels(val_gyro_y)
+print(f"Unique labels in balanced val_acc_y: {val_acc_unique_labels}")
+print(f"Unique labels in balanced val_gyro_y: {val_gyro_unique_labels}")
+
+# Print unique labels and their corresponding names for accelerometer
+print(f"Unique labels in balanced val_acc_y: {val_acc_unique_labels}")
+print("Actual label names in balanced val_acc_y:")
+for label in val_acc_unique_labels:
+    label_name = [name for name, index in label_map_acc.items() if index == label]
+    print(f"Label {label}: {label_name[0] if label_name else 'Unknown'}")
+
+# Print unique labels and their corresponding names for gyroscope
+print(f"Unique labels in balanced val_gyro_y: {val_gyro_unique_labels}")
+print("Actual label names in balanced val_gyro_y:")
+for label in val_gyro_unique_labels:
+    label_name = [name for name, index in label_map_gyro.items() if index == label]
+    print(f"Label {label}: {label_name[0] if label_name else 'Unknown'}")
+    
+# Check class balance for training and validation datasets
+train_class_balance_acc = check_class_balance(np.argmax(acc_df[0][1], axis=1))
+val_class_balance_acc = check_class_balance(np.argmax(acc_df[1][1], axis=1))
+train_class_balance_gyro = check_class_balance(np.argmax(gyro_df[0][1], axis=1))
+val_class_balance_gyro = check_class_balance(np.argmax(gyro_df[1][1], axis=1))
+
+print(f"Training class balance (ACC): {train_class_balance_acc}")
+print(f"Validation class balance (ACC): {val_class_balance_acc}")
+print(f"Training class balance (GYRO): {train_class_balance_gyro}")
+print(f"Validation class balance (GYRO): {val_class_balance_gyro}")
 
 # Train the model with both accelerometer and gyroscope labels
 history = model.fit(
@@ -207,19 +227,28 @@ history = model.fit(
 )
 
 # Save the initial model
-model.save('pretext_combined_model.keras')
+model.save('pretext_combined_model2.keras')
 
-# Predictions
+# Evaluate the model on the validation set
+evaluation_results = model.evaluate([val_acc_x, val_gyro_x], [val_acc_y, val_gyro_y])
+print(f"Model metrics names: {model.metrics_names}")
+print(f"Evaluation results: {evaluation_results}")
+
+# Unpack evaluation results based on model metrics names
+val_loss, val_acc_output_acc, val_gyro_output_acc = evaluation_results
+
+print(f"Validation loss: {val_loss}")
+print(f"Validation accuracy (ACC): {val_acc_output_acc}")
+print(f"Validation accuracy (GYRO): {val_gyro_output_acc}")
+
+# Generate predictions and plot confusion matrices
 acc_pred_labels, gyro_pred_labels = model.predict([val_acc_x, val_gyro_x])
 acc_pred_labels = np.argmax(acc_pred_labels, axis=1)
 gyro_pred_labels = np.argmax(gyro_pred_labels, axis=1)
 val_acc_labels = np.argmax(val_acc_y, axis=1)
 val_gyro_labels = np.argmax(val_gyro_y, axis=1)
 
-# Plot confusion matrices
 plot_confusion_matrix(val_acc_labels, acc_pred_labels, classes=list(label_map_acc.keys()),
                       title='Confusion Matrix for Accelerometer', filename='confusion_matrix_acc.png')
 plot_confusion_matrix(val_gyro_labels, gyro_pred_labels, classes=list(label_map_gyro.keys()),
                       title='Confusion Matrix for Gyroscope', filename='confusion_matrix_gyro.png')
-
-print("One or more sensor types are missing in the datasets.")
